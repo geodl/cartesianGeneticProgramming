@@ -129,3 +129,73 @@ def onePlusLambdaEvolve(initialGenome, fitness, mutate, nLambda, nGenerations):
 #                     #flippy output
 #         return newGenome
 #     return mutate
+
+# def makeMutation(mu, sigma, hVo, fiVc):
+#     def mutate(genome):
+#         newGenome = copy.deepcopy(genome)
+#         nMutations = int(1 + abs(random.gauss(mu, sigma)))
+#         nNodes = newGenome.h + newGenome.m
+#         for i in range(nMutations):
+#             #choose random node
+#             x = random.randrange(nNodes)
+#             if x < newGenome.h:
+#                 #we chose a hidden node
+#                 node = random.choice(newGenome.nodes)
+#                 nGenes = node.connections + 1
+#                 y = random.randrange(nGenes)
+#                 if y > 0:
+#                     #flip connection
+#                     node
+#                 else:
+#                     #flip function index
+#             else:
+#                 #we chose an output node
+#                 #flip output node i - h
+#                 newGenome.outputs[i - h] = random.randrange(newGenomes.n + newGenome.h)
+
+def makeMutation(sigma, hVo, fiVc):
+    def mutate(genome):
+        functionTable = genome.functionTable
+        print("mutate")
+        printGenome(genome)
+        newGenome = copy.deepcopy(genome)
+        nMutations = int(1 + abs(random.gauss(0, sigma)))
+        print(f"nMutations:{nMutations}")
+        for i in range(nMutations):
+            #determine if we are mutating a hidden node or an output
+            if random.random() < hVo:
+                #we are mutating a hidden node
+                print("hidden")
+                nodeIndex = random.randrange(newGenome.h)
+                hiddenNode = newGenome.nodes[nodeIndex]
+                #determine if we are mutating the function index or a connection
+                if random.random() < fiVc:
+                    print("function")
+                    #we are mutating a funciton index
+                    oldArity = functionTable[hiddenNode.functionIndex].arity
+                    newFi = random.randrange(len(functionTable))
+                    hiddenNode.functionIndex = newFi
+                    #have to maintain connections to reflect new fi
+                    newArity = functionTable[newFi].arity
+                    if newArity > oldArity:
+                        #need to create some new connections
+                        hiddenNode.connections += [random.randrange(nodeIndex) for i in range(newArity - oldArity)]
+                    elif newArity < oldArity:
+                        #need to trim some connections
+                        del hiddenNode.connections[:newArity]
+                    
+                else:
+                    print("connection")
+                    #we are mutating a connection
+                    connection = random.choice(hiddenNode.connections)
+                    connection = random.randrange(nodeIndex)
+
+            else:
+                print("output")
+                #we are mutating an output node
+                outputIndex = random.randrange(newGenome.m)
+                newGenome.outputs[outputIndex] = random.randrange(newGenome.n + newGenome.h)
+        printGenome(genome)
+        printGenome(newGenome)
+        return newGenome
+    return mutate
