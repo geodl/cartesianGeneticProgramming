@@ -4,17 +4,21 @@ import random
 import operator
 import copy
 import math
+import multiprocessing
 
-FunctionRecord = collections.namedtuple("FunctionRecord", ["function", "name", "arity"])
+FunctionRecord = collections.namedtuple("FunctionRecord", ["function", "name", "module", "arity"])
 
 def makeFunctionTable(functions):
-    #take a list of functions and construct a table with them and their arity
+    #take a list of functions and construct a table with them their readable name and their arity
     functionTable = []
     for f in functions:
         spec = inspect.signature(f)
         name = dict(inspect.getmembers(f))["__name__"]
+        module = dict(inspect.getmembers(f))["__module__"]
+        #module = "operator"
         arity = len(spec.parameters)
-        functionRecord = FunctionRecord(f, name, arity)
+        functionRecord = FunctionRecord(f, name, module, arity)
+        #print(functionRecord)
         functionTable.append(functionRecord)
     return functionTable
 
@@ -61,7 +65,11 @@ def printActive(genome):
             #calculate the paramaters to f by recursive descent on the connections
             paramaters = [evalNode(x) for x in node['connections']]
             #return the output of f applied to its paramaters
-            return f"({fname} {' '.join(paramaters)})"
+            if paramaters == []:
+                result = f"({fname})"
+            else:
+                result = f"({fname} {' '.join(paramaters)})"
+            return result
     #calculate each output
     print("\n".join([evalNode(output) for output in genome['outputs']]))
 
@@ -83,15 +91,15 @@ def evaluateGenome(genome, inputs):
     #calculate each output
     return [evalNode(output) for output in genome['outputs']]
 
-def onePlusLambdaEvolve(initialGenome, fitness, mutate, nLambda, goalFitness):
+def onePlusLambdaEvolve(initialGenome, fitness, mutate, nLambda, q):
     #implements the 'one plus lambda' optimization heuristic
     #each generation, the elite is mutated lambda many times
     #then if any new genome is at least as good as the elite it becomes the new elite
     elite = initialGenome
     eliteFitness = fitness(elite)
-    generation = 0
-    #the main optimization loop runs nGeneration many times
-    while eliteFitness > goalFitness:
+    #generation = 0
+    #the main optimization loop run forever
+    while True:
         #each generation generates a new population based on the elite
         newPopulation = []
         for i in range(nLambda):
@@ -103,76 +111,4 @@ def onePlusLambdaEvolve(initialGenome, fitness, mutate, nLambda, goalFitness):
             if individual[1] <= eliteFitness:
                 elite = individual[0]
                 eliteFitness = individual[1]
-        print(f"{generation} {eliteFitness}")
-        generation += 1
-    return (elite, eliteFitness)
-
-def makeMutation(sigma, hVo, fiVc):
-    def mutate(genome):
-        functionTable = genome['functionTable']
-        # print("mutate")
-        #printGenome(genome)
-        newGenome = copy.deepcopy(genome)
-        nMutations = int(1 + abs(random.gauss(0, sigma)))
-        # print(f"nMutations:{nMutations}")
-        for i in range(nMutations):
-            #determine if we are mutating a hidden node or an output
-            if random.random() < hVo:
-                #we are mutating a hidden node
-                # print("hidden:", end="")
-                nodeIndex = random.randrange(newGenome['h'])
-                # print(f"{nodeIndex}:", end="")
-                hiddenNode = newGenome['nodes'][nodeIndex]
-                #determine if we are mutating the function index or a connection
-                if random.random() < fiVc:
-                    # print("function")
-                    #we are mutating a funciton index
-                    oldArity = functionTable[hiddenNode['fi']].arity
-                    newFi = random.randrange(len(functionTable))
-                    hiddenNode['fi'] = newFi
-                    #have to maintain connections to reflect new fi
-                    newArity = functionTable[newFi].arity
-                    if newArity > oldArity:
-                        #need to create some new connections
-                        hiddenNode['connections'] += [random.randrange(nodeIndex + newGenome['n']) for i in range(newArity - oldArity)]
-                    elif newArity < oldArity:
-                        #need to trim some connections
-                        del hiddenNode['connections'][:newArity]
-                else:
-                    # print("connection:", end="")
-                    #we are mutating a connection
-                    connectionIndex = random.randrange(len(hiddenNode['connections']))
-                    # print(connectionIndex)
-                    hiddenNode['connections'][connectionIndex] = random.randrange(nodeIndex + newGenome['n'])
-            else:
-                # print("output:", end="")
-                #we are mutating an output node
-                outputIndex = random.randrange(newGenome['m'])
-                # print(outputIndex)
-                newGenome['outputs'][outputIndex] = random.randrange(newGenome['n'] + newGenome['h'])
-        #printGenome(newGenome)
-        return newGenome
-    return mutate
-
-#make training data
-def makeTrainingData(f, n, a, b, k):
-    samples = []
-    for i in range(k):
-        x = [random.uniform(a,b) for j in range(n)]
-        fx = f(*x)
-        samples.append((x,fx))
-    return samples
-
-#makeFitness
-def makeFitness(trainingData):
-    def fitness(genome):
-        #calculate error on trainingData
-        error = 0.0
-        for sample in trainingData:
-            x = sample[0]
-            y = sample[1]
-            fx = evaluateGenome(genome, x)
-            for s in range(len(y)):
-                error += abs(y[s] - fx[s])
-        return error
-    return fitness
+        q.put((eliteFitness, elite))
