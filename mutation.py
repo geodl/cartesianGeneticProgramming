@@ -21,6 +21,7 @@ def makeMutation(sigma, mutationDistribution):
     
     return mutate
 
+
 #mutate output
 def outputMutation(genome):
     outputIndex = random.randrange(genome['m'])
